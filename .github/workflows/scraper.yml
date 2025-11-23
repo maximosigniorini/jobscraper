@@ -3,32 +3,39 @@ name: Job Scraper
 on:
   schedule:
     # Runs at 9:00 AM UTC every day.
-    # You can change the time to whatever you prefer.
     - cron: '0 9 * * *'
+  # Allows you to run this workflow manually from the Actions tab for testing
+  workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    
+    # Add permissions to allow the bot to push changes to the repo
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.x'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests python-dotenv sendgrid
+          # Removed 'sendgrid' as it's no longer needed
+          pip install requests python-dotenv
 
       - name: Run script
         run: |
           python jobScraper.py
         env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          # Updated environment variables for Gmail
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
           EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
 
