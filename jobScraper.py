@@ -40,8 +40,8 @@ def save_seen_jobs(jobs_set):
 
 def fetch_jobs():
     headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-}
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
+    }
     response = requests.get(URL, headers=headers)
     response.raise_for_status()
     return response.json()
