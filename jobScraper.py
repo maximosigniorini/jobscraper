@@ -1,5 +1,5 @@
 import os
-import requests
+import cloudscraper
 import json
 import smtplib
 import ssl
@@ -39,10 +39,8 @@ def save_seen_jobs(jobs_set):
         json.dump(list(jobs_set), f)
 
 def fetch_jobs():
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
-    }
-    response = requests.get(URL, headers=headers)
+    scraper = cloudscraper.create_scraper()
+    response = scraper.get(URL)
     response.raise_for_status()
     return response.json()
 
