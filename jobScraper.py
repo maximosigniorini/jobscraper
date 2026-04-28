@@ -69,6 +69,66 @@ def format_date(iso_string):
 
 def get_audio_gigs_from_reddit(seen_jobs, limit_per_sub=5):
     """
+    Scrapes subreddits for STRICTLY PAID audio gigs using Cloudscraper to bypass 403 blocks.
+    """
+    subreddits = ["INAT", "gameDevClassifieds", "gameaudio", "Filmmakers"]
+    headers = {'User-Agent': 'python:dailyjobscraper:v4.0 (by /u/your_reddit_username)'}
+    
+    audio_keywords = ["sound designer", "sound design", "composer", "music", "sfx", "audio", "ost"]
+    paid_keywords = ["[paid]", "paid", "hiring", "contract", "freelance", "budget", "compensation"]
+    exclude_keywords = [
+        "for hire", "forhire", "portfolio", "my music", "hire me", 
+        "hobby", "revshare", "rev-share", "revenue share", "unpaid"
+    ]
+
+    reddit_results = []
+    all_fetched_reddit_urls = set()
+    
+    # Initialize your cloudscraper
+    scraper = cloudscraper.create_scraper()
+
+    for sub in subreddits:
+        url = f"https://www.reddit.com/r/{sub}/new.json?limit=35" 
+        try:
+            # Use scraper.get instead of requests.get
+            response = scraper.get(url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            
+            matched_count = 0
+            for post in data['data']['children']:
+                title = post['data']['title'].lower()
+                permalink = post['data']['permalink']
+                post_url = f"https://www.reddit.com{permalink}"
+                
+                all_fetched_reddit_urls.add(post_url)
+                
+                if post_url in seen_jobs:
+                    continue
+                
+                has_audio = any(kw in title for kw in audio_keywords)
+                has_paid = any(kw in title for kw in paid_keywords)
+                has_exclusion = any(kw in title for kw in exclude_keywords)
+                
+                if has_audio and has_paid and not has_exclusion:
+                    display_title = post['data']['title']
+                    reddit_results.append(f"""
+                        <li style="margin-bottom:15px;">
+                            <span style="color:#555; font-weight:bold;">[r/{sub}]</span><br>
+                            <a href='{post_url}' style="font-weight:bold; font-size:14px; color:#ff4500; text-decoration:none;">
+                                {display_title}
+                            </a>
+                        </li>
+                    """)
+                    matched_count += 1
+                    
+                if matched_count >= limit_per_sub:
+                    break
+        except Exception as e:
+            print(f"Error fetching from r/{sub}: {e}")
+            
+    return reddit_results, all_fetched_reddit_urls
+    """
     Scrapes subreddits for STRICTLY PAID audio/music gigs, filtering out portfolios and hobby projects.
     """
     subreddits = ["INAT", "gameDevClassifieds", "gameaudio", "Filmmakers"]
