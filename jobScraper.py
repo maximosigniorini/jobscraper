@@ -3,7 +3,7 @@ import cloudscraper
 import json
 import smtplib
 import ssl
-import requests
+import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
@@ -69,70 +69,18 @@ def format_date(iso_string):
 
 def get_audio_gigs_from_reddit(seen_jobs, limit_per_sub=5):
     """
-    Scrapes subreddits for STRICTLY PAID audio gigs using Cloudscraper to bypass 403 blocks.
-    """
-    subreddits = ["INAT", "gameDevClassifieds", "gameaudio", "Filmmakers"]
-    headers = {'User-Agent': 'python:dailyjobscraper:v4.0 (by /u/your_reddit_username)'}
-    
-    audio_keywords = ["sound designer", "sound design", "composer", "music", "sfx", "audio", "ost"]
-    paid_keywords = ["[paid]", "paid", "hiring", "contract", "freelance", "budget", "compensation"]
-    exclude_keywords = [
-        "for hire", "forhire", "portfolio", "my music", "hire me", 
-        "hobby", "revshare", "rev-share", "revenue share", "unpaid"
-    ]
-
-    reddit_results = []
-    all_fetched_reddit_urls = set()
-    
-    # Initialize your cloudscraper
-    scraper = cloudscraper.create_scraper()
-
-    for sub in subreddits:
-        url = f"https://www.reddit.com/r/{sub}/new.json?limit=35" 
-        try:
-            # Use scraper.get instead of requests.get
-            response = scraper.get(url, headers=headers)
-            response.raise_for_status()
-            data = response.json()
-            
-            matched_count = 0
-            for post in data['data']['children']:
-                title = post['data']['title'].lower()
-                permalink = post['data']['permalink']
-                post_url = f"https://www.reddit.com{permalink}"
-                
-                all_fetched_reddit_urls.add(post_url)
-                
-                if post_url in seen_jobs:
-                    continue
-                
-                has_audio = any(kw in title for kw in audio_keywords)
-                has_paid = any(kw in title for kw in paid_keywords)
-                has_exclusion = any(kw in title for kw in exclude_keywords)
-                
-                if has_audio and has_paid and not has_exclusion:
-                    display_title = post['data']['title']
-                    reddit_results.append(f"""
-                        <li style="margin-bottom:15px;">
-                            <span style="color:#555; font-weight:bold;">[r/{sub}]</span><br>
-                            <a href='{post_url}' style="font-weight:bold; font-size:14px; color:#ff4500; text-decoration:none;">
-                                {display_title}
-                            </a>
-                        </li>
-                    """)
-                    matched_count += 1
-                    
-                if matched_count >= limit_per_sub:
-                    break
-        except Exception as e:
-            print(f"Error fetching from r/{sub}: {e}")
-            
-    return reddit_results, all_fetched_reddit_urls
-    """
     Scrapes subreddits for STRICTLY PAID audio/music gigs, filtering out portfolios and hobby projects.
+    Uses cloudscraper to attempt bypassing 403 blocks.
     """
     subreddits = ["INAT", "gameDevClassifieds", "gameaudio", "Filmmakers"]
-    headers = {'User-Agent': 'python:dailyjobscraper:v3.0 (by /u/your_reddit_username)'}
+    
+    # Using more robust browser-like headers
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://www.reddit.com/'
+    }
     
     # 1. Must contain at least one of these (What the job is)
     audio_keywords = ["sound designer", "sound design", "composer", "music", "sfx", "audio", "ost"]
@@ -148,11 +96,15 @@ def get_audio_gigs_from_reddit(seen_jobs, limit_per_sub=5):
 
     reddit_results = []
     all_fetched_reddit_urls = set()
+    
+    scraper = cloudscraper.create_scraper()
 
     for sub in subreddits:
-        url = f"https://www.reddit.com/r/{sub}/new.json?limit=35" # Bumped limit to 35 since we are filtering harder
+        url = f"https://www.reddit.com/r/{sub}/new.json?limit=35" 
         try:
-            response = requests.get(url, headers=headers)
+            # Adding a small sleep to be polite and avoid rate limits
+            time.sleep(2)
+            response = scraper.get(url, headers=headers, timeout=15)
             response.raise_for_status()
             data = response.json()
             
@@ -191,6 +143,7 @@ def get_audio_gigs_from_reddit(seen_jobs, limit_per_sub=5):
             print(f"Error fetching from r/{sub}: {e}")
             
     return reddit_results, all_fetched_reddit_urls
+
 
 def send_email(new_jobs, reddit_jobs):
     grouped = defaultdict(list)
