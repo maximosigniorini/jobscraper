@@ -4,6 +4,7 @@ import json
 import smtplib
 import ssl
 import time
+import praw
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
@@ -42,6 +43,12 @@ def save_seen_jobs(jobs_set):
 def fetch_jobs():
     scraper = cloudscraper.create_scraper()
     response = scraper.get(URL)
+    if response.status_code != 200:
+        print(f"HTTP Status: {response.status_code}")
+        print(f"Server: {response.headers.get('Server')}")
+        print(f"CF-Ray: {response.headers.get('CF-Ray')}")
+        print(f"Content-Type: {response.headers.get('Content-Type')}")
+        print(f"Response preview: {response.text[:1000]}")
     response.raise_for_status()
     return response.json()
 
@@ -70,17 +77,9 @@ def format_date(iso_string):
 def get_audio_gigs_from_reddit(seen_jobs, limit_per_sub=5):
     """
     Scrapes subreddits for STRICTLY PAID audio/music gigs, filtering out portfolios and hobby projects.
-    Uses cloudscraper to attempt bypassing 403 blocks.
+    Uses the official PRAW library to reliably bypass 403 blocks on GitHub Actions.
     """
     subreddits = ["INAT", "gameDevClassifieds", "gameaudio", "Filmmakers"]
-    
-    # Using more robust browser-like headers
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': 'https://www.reddit.com/'
-    }
     
     # 1. Must contain at least one of these (What the job is)
     audio_keywords = ["sound designer", "sound design", "composer", "music", "sfx", "audio", "ost"]
@@ -97,21 +96,33 @@ def get_audio_gigs_from_reddit(seen_jobs, limit_per_sub=5):
     reddit_results = []
     all_fetched_reddit_urls = set()
     
-    scraper = cloudscraper.create_scraper()
+    reddit_client_id = os.getenv("REDDIT_CLIENT_ID")
+    reddit_client_secret = os.getenv("REDDIT_CLIENT_SECRET")
+    
+    if not reddit_client_id or not reddit_client_secret:
+        print("Error: REDDIT_CLIENT_ID or REDDIT_CLIENT_SECRET environment variables are not set. Skipping Reddit scrape.")
+        return [], set()
 
-    for sub in subreddits:
-        url = f"https://www.reddit.com/r/{sub}/new.json?limit=35" 
+    try:
+        reddit = praw.Reddit(
+            client_id=reddit_client_id,
+            client_secret=reddit_client_secret,
+            user_agent="python:dailyjobscraper:v5.0 (by /u/your_reddit_username)"
+        )
+    except Exception as e:
+        print(f"Error initializing PRAW: {e}")
+        return [], set()
+
+    for sub_name in subreddits:
         try:
-            # Adding a small sleep to be polite and avoid rate limits
-            time.sleep(2)
-            response = scraper.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
-            data = response.json()
+            # Adding a small sleep to be polite
+            time.sleep(1)
+            subreddit = reddit.subreddit(sub_name)
             
             matched_count = 0
-            for post in data['data']['children']:
-                title = post['data']['title'].lower()
-                permalink = post['data']['permalink']
+            for post in subreddit.new(limit=35):
+                title = post.title.lower()
+                permalink = post.permalink
                 post_url = f"https://www.reddit.com{permalink}"
                 
                 all_fetched_reddit_urls.add(post_url)
@@ -126,10 +137,10 @@ def get_audio_gigs_from_reddit(seen_jobs, limit_per_sub=5):
                 
                 # STRICT FILTER: Needs Audio AND Needs Paid AND NO Exclusions
                 if has_audio and has_paid and not has_exclusion:
-                    display_title = post['data']['title']
+                    display_title = post.title
                     reddit_results.append(f"""
                         <li style="margin-bottom:15px;">
-                            <span style="color:#555; font-weight:bold;">[r/{sub}]</span><br>
+                            <span style="color:#555; font-weight:bold;">[r/{sub_name}]</span><br>
                             <a href='{post_url}' style="font-weight:bold; font-size:14px; color:#ff4500; text-decoration:none;">
                                 {display_title}
                             </a>
@@ -140,7 +151,7 @@ def get_audio_gigs_from_reddit(seen_jobs, limit_per_sub=5):
                 if matched_count >= limit_per_sub:
                     break
         except Exception as e:
-            print(f"Error fetching from r/{sub}: {e}")
+            print(f"Error fetching from r/{sub_name}: {e}")
             
     return reddit_results, all_fetched_reddit_urls
 
