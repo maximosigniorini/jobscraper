@@ -41,7 +41,13 @@ def save_seen_jobs(jobs_set):
         json.dump(list(jobs_set), f)
 
 def fetch_jobs():
-    scraper = cloudscraper.create_scraper()
+    scraper = cloudscraper.create_scraper(
+        browser={
+        'browser': 'chrome',
+        'platform': 'windows',
+        'mobile': False
+        }
+    )
     response = scraper.get(URL)
     if response.status_code != 200:
         print(f"HTTP Status: {response.status_code}")
