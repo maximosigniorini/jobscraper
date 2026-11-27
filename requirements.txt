@@ -1,3 +1,4 @@
 cloudscraper
 python-dotenv
 requests
+praw
